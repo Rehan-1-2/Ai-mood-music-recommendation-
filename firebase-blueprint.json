@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and rewards data",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "joinDate": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "points": { "type": "number" },
+        "level": { "type": "number" },
+        "unlockedBadges": { "type": "array", "items": { "type": "string" } },
+        "songsPlayed": { "type": "number" },
+        "currentStreak": { "type": "number" },
+        "lastActiveDate": { "type": "string" }
+      },
+      "required": ["username", "email", "joinDate"]
+    },
+    "Favorite": {
+      "title": "Favorite",
+      "description": "A favorite song",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "artist": { "type": "string" },
+        "spotifyUrl": { "type": "string" },
+        "albumArtUrl": { "type": "string" },
+        "previewUrl": { "type": "string" },
+        "savedAt": { "type": "string" }
+      },
+      "required": ["title", "artist", "spotifyUrl"]
+    },
+    "MoodEntry": {
+      "title": "MoodEntry",
+      "description": "A history entry of a detected mood",
+      "type": "object",
+      "properties": {
+        "mood": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "intensity": { "type": "number" }
+      },
+      "required": ["mood", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Top-level user data"
+    },
+    "/users/{userId}/favorites/{favoriteId}": {
+      "schema": "Favorite",
+      "description": "User's favorite songs"
+    },
+    "/users/{userId}/moodHistory/{historyId}": {
+      "schema": "MoodEntry",
+      "description": "User's mood history logs"
+    }
+  }
+}

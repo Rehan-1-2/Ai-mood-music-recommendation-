@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definition
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Phase 4: Entity Validation
+    
+    function isValidUser(data) {
+      return data.username is string && data.username.size() <= 100
+          && data.email is string && data.email.size() <= 150
+          && data.joinDate is string && data.joinDate.size() <= 50
+          && (!('avatarUrl' in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 1000))
+          && (!('points' in data) || data.points is number)
+          && (!('level' in data) || data.level is number)
+          && (!('unlockedBadges' in data) || data.unlockedBadges is list)
+          && (!('songsPlayed' in data) || data.songsPlayed is number)
+          && (!('currentStreak' in data) || data.currentStreak is number)
+          && (!('lastActiveDate' in data) || data.lastActiveDate == null || (data.lastActiveDate is string && data.lastActiveDate.size() <= 50));
+    }
+
+    function isValidFavorite(data) {
+      return data.title is string && data.title.size() <= 300
+          && data.artist is string && data.artist.size() <= 300
+          && data.spotifyUrl is string && data.spotifyUrl.size() <= 1000
+          && (!('albumArtUrl' in data) || data.albumArtUrl == null || (data.albumArtUrl is string && data.albumArtUrl.size() <= 2000))
+          && (!('previewUrl' in data) || data.previewUrl == null || (data.previewUrl is string && data.previewUrl.size() <= 2000));
+    }
+
+    function isValidMoodEntry(data) {
+      return data.mood is string && data.mood.size() <= 100
+          && data.timestamp is number;
+    }
+
+    // Rules
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      
+      allow create: if isOwner(userId) 
+          && isValidUser(incoming())
+          && (incoming().keys().hasAll(['username', 'email', 'joinDate']))
+          && incoming().email == request.auth.token.email;
+
+      allow update: if isOwner(userId)
+          && isValidUser(incoming())
+          && (
+            // Action: Update Profile
+            (incoming().diff(existing()).affectedKeys().hasOnly(['username', 'avatarUrl'])) ||
+            // Action: Update Rewards/Stats
+            (incoming().diff(existing()).affectedKeys().hasOnly(['points', 'level', 'unlockedBadges', 'songsPlayed', 'currentStreak', 'lastActiveDate']))
+          )
+          && incoming().email == existing().email
+          && incoming().joinDate == existing().joinDate;
+
+      match /favorites/{favoriteId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(favoriteId) && isValidFavorite(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /moodHistory/{historyId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(historyId) && isValidMoodEntry(incoming());
+      }
+    }
+  }
+}
