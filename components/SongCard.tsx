@@ -89,6 +89,7 @@ const SongCard: React.FC<SongCardProps> = ({
             href={song.spotifyUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
             className="flex-shrink-0 w-11 h-11 flex items-center justify-center rounded-full bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-slate-400 hover:bg-[#1DB954] hover:text-white hover:border-[#1DB954] transition-all duration-300 hover:scale-110 mr-2 backdrop-blur-sm"
             title="Listen on Spotify"
             >

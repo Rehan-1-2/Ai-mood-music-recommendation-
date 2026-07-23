@@ -12,6 +12,14 @@ import SongOfTheDay from './SongOfTheDay';
 import ProfileSection from './ProfileSection';
 import { Song, Mood, UserProfile, UserRewards } from '../types';
 import { getMoodAndRecommendations, getSongOfTheDay } from '../services/geminiService';
+
+export interface RecentMood {
+  id: string;
+  input: string;
+  mood: Mood;
+  songs: Song[];
+  timestamp: number;
+}
 import { calculateLevel, BADGES } from '../services/rewardService';
 import { auth, db } from '../src/lib/firebase';
 import { handleFirestoreError, OperationType } from '../src/lib/firestoreUtils';
@@ -44,6 +52,31 @@ const MusicRecommender: React.FC<MusicRecommenderProps> = ({ isDark, toggleTheme
 
   // History State for Analytics
   const [moodHistory, setMoodHistory] = useState<MoodEntry[]>([]);
+
+  // Recent Moods State (last 5 searches) persisted in localStorage
+  const [recentMoods, setRecentMoods] = useState<RecentMood[]>(() => {
+    try {
+      const saved = localStorage.getItem('recentMoods');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to parse recent moods in initializer", e);
+      return [];
+    }
+  });
+
+  // Persist recentMoods
+  useEffect(() => {
+    localStorage.setItem('recentMoods', JSON.stringify(recentMoods));
+  }, [recentMoods]);
+
+  const handleDeleteRecentMood = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setRecentMoods(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleClearAllRecentMoods = () => {
+    setRecentMoods([]);
+  };
 
   // --- REWARD SYSTEM STATE ---
   const [rewards, setRewards] = useState<UserRewards>({ 
@@ -613,6 +646,19 @@ const MusicRecommender: React.FC<MusicRecommenderProps> = ({ isDark, toggleTheme
       
       const newEntry: MoodEntry = { mood: response.mood, timestamp: Date.now() };
       setMoodHistory(prev => [...prev, newEntry]);
+
+      // Save to Recent Moods list (limit to last 5, keep unique inputs)
+      const recentItem: RecentMood = {
+        id: Date.now().toString(),
+        input: text.trim() || `${response.mood} vibe`,
+        mood: response.mood,
+        songs: response.songs,
+        timestamp: Date.now()
+      };
+      setRecentMoods(prev => {
+        const filtered = prev.filter(item => item.input.toLowerCase() !== recentItem.input.toLowerCase());
+        return [recentItem, ...filtered].slice(0, 5);
+      });
       
       // Reward: +10 points for a vibe check
       addPoints(10);
@@ -752,6 +798,40 @@ const MusicRecommender: React.FC<MusicRecommenderProps> = ({ isDark, toggleTheme
 
               {recommendations && mood && !isLoading && (
                 <div className="space-y-6 animate-fadeInUp">
+                  {/* COMPACT RECENT MOODS ROW */}
+                  {recentMoods.length > 0 && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                      <span className="text-[10px] font-bold font-mono tracking-wider text-slate-400 dark:text-slate-500 uppercase whitespace-nowrap mr-1">
+                        Recent Vibes:
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {recentMoods.map((item) => {
+                          const isActive = item.songs[0]?.title === recommendations[0]?.title && item.songs[0]?.artist === recommendations[0]?.artist;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => {
+                                setRecommendations(item.songs);
+                                setMood(item.mood);
+                                setPlayerSource('recommendations');
+                                setCurrentSongIndex(null);
+                                setIsPlaying(false);
+                              }}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-300 backdrop-blur-md whitespace-nowrap cursor-pointer ${
+                                isActive 
+                                  ? 'bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white border-transparent shadow-md shadow-indigo-500/15 scale-102'
+                                  : 'bg-white/50 dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/10 hover:border-slate-300 dark:hover:border-white/20'
+                              }`}
+                            >
+                              <span>{getMoodEmoji(item.mood)}</span>
+                              <span className="max-w-[120px] truncate">"{item.input}"</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="bg-white/60 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-2xl backdrop-blur-xl">
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-2">
                         <div className="flex items-center gap-4">
@@ -790,6 +870,79 @@ const MusicRecommender: React.FC<MusicRecommenderProps> = ({ isDark, toggleTheme
                         isFavorite={isSongFavorite(song)}
                         onToggleFavorite={() => toggleFavorite(song)}
                       />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* RECENT MOODS - GLORIOUS DASHBOARD (When not loading, no active recommendations, and has recent moods) */}
+              {!isLoading && !error && !recommendations && recentMoods.length > 0 && (
+                <div className="bg-white/60 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl p-8 shadow-2xl backdrop-blur-xl mb-8 animate-fadeInUp w-full">
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/20 dark:border-indigo-500/30">
+                        <i className="fa-solid fa-clock-rotate-left text-lg text-indigo-600 dark:text-indigo-400"></i>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white">Recent Moods</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-light mt-0.5">Pick up where you left off</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleClearAllRecentMoods}
+                      className="text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-all text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 cursor-pointer"
+                    >
+                      <i className="fa-solid fa-trash-can text-[10px]"></i>
+                      Clear All
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {recentMoods.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          setRecommendations(item.songs);
+                          setMood(item.mood);
+                          setPlayerSource('recommendations');
+                          setCurrentSongIndex(null);
+                          setIsPlaying(false);
+                        }}
+                        className="group relative cursor-pointer text-left p-5 bg-white/40 dark:bg-white/5 hover:bg-white/90 dark:hover:bg-white/10 border border-slate-200/60 dark:border-white/5 hover:border-indigo-300 dark:hover:border-indigo-500/30 rounded-2xl transition-all duration-300 hover:shadow-lg flex flex-col justify-between h-40"
+                      >
+                        {/* Delete Button */}
+                        <button
+                          onClick={(e) => handleDeleteRecentMood(e, item.id)}
+                          className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity p-2 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg cursor-pointer z-20"
+                          title="Remove from history"
+                        >
+                          <i className="fa-solid fa-xmark text-sm"></i>
+                        </button>
+
+                        <div>
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-3xl filter drop-shadow">{getMoodEmoji(item.mood)}</span>
+                            <div>
+                              <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 tracking-wider uppercase">{item.mood}</span>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+                                {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm line-clamp-2 leading-relaxed group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                            "{item.input}"
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-4 border-t border-slate-100 dark:border-white/5 pt-3 font-light">
+                          <span className="bg-indigo-500/5 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md font-medium">
+                            {item.songs.length} Song{item.songs.length !== 1 ? 's' : ''}
+                          </span>
+                          <span className="flex items-center gap-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 font-medium transition-colors">
+                            Load Playlist <i className="fa-solid fa-chevron-right text-[10px] transform group-hover:translate-x-1 transition-transform"></i>
+                          </span>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
