@@ -25,7 +25,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, isDark, togg
           <i className="fa-solid fa-music text-2xl md:text-3xl text-indigo-500 dark:text-indigo-400"></i>
         </div>
         <h1 className="text-[28px] md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 dark:from-indigo-300 dark:via-purple-300 dark:to-fuchsia-300 drop-shadow-sm">
-          AI Mood Music
+          Moodify
         </h1>
       </div>
       

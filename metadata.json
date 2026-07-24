@@ -1,5 +1,5 @@
 {
-  "name": "AI Mood Music Recommender",
+  "name": "Moodify",
   "description": "An intelligent web application that analyzes the user's mood from text input and recommends a curated list of songs to match their emotional state using the Gemini API.",
   "requestFramePermissions": [
     "microphone",
