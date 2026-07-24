@@ -162,14 +162,14 @@ const MusicRecommender: React.FC<MusicRecommenderProps> = ({ isDark, toggleTheme
         const user = auth.currentUser;
         if (!user || isDataSyncing) return;
         try {
-            await updateDoc(doc(db, 'users', user.uid), {
+            await setDoc(doc(db, 'users', user.uid), {
                 points: rewards.points,
                 level: rewards.level,
                 unlockedBadges: rewards.unlockedBadges,
                 songsPlayed: rewards.songsPlayed,
                 currentStreak: rewards.currentStreak,
                 lastActiveDate: rewards.lastActiveDate
-            });
+            }, { merge: true });
         } catch (err) {
             handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
         }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { updateProfile } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { UserProfile, UserRewards } from '../types';
 import { BADGES, getProgressToNextLevel, getNextLevelThreshold } from '../services/rewardService';
 import { auth, db } from '../src/lib/firebase';
@@ -51,10 +51,10 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ user, rewards, stats, o
           });
 
           // 2. Update Firestore User Doc
-          await updateDoc(doc(db, 'users', currentUser.uid), {
+          await setDoc(doc(db, 'users', currentUser.uid), {
               username: editForm.username,
               avatarUrl: editForm.avatarUrl
-          });
+          }, { merge: true });
 
           onUpdateUser({
               ...user,
