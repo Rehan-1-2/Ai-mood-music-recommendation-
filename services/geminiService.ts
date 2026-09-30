@@ -186,9 +186,9 @@ Provide exactly 10 distinct, highly matching song recommendations. Return only a
       required: ["mood", "songs"]
     };
 
-    // Use gemini-3.5-flash as the highly modern, fast, and robust model
+    // Use gemini-3.5-flash-lite for faster latency, high reliability, and optimal throughput
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.5-flash-lite",
       contents: [{ role: "user", parts }],
       config: {
         systemInstruction,
@@ -251,7 +251,7 @@ Ensure perfect JSON formatting.`
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.5-flash-lite",
       contents: "Query the exclusive Song of the Day.",
       config: {
         systemInstruction,
