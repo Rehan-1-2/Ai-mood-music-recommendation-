@@ -320,17 +320,67 @@ const MusicRecommender: React.FC<MusicRecommenderProps> = ({ isDark, toggleTheme
     localStorage.setItem('moodHistory', JSON.stringify(moodHistory));
   }, [moodHistory]);
 
-  // Load SOTD from local storage
+  // Helper to get SOTD history for daily variety
+  const getRecentSotdHistory = (): string[] => {
+    try {
+      const historyStr = localStorage.getItem('sotd_history');
+      return historyStr ? JSON.parse(historyStr) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveToSotdHistory = (title: string) => {
+    try {
+      const history = getRecentSotdHistory();
+      const updated = [title, ...history.filter(t => t.toLowerCase() !== title.toLowerCase())].slice(0, 25);
+      localStorage.setItem('sotd_history', JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to save SOTD history", e);
+    }
+  };
+
+  const fetchDailySong = async (forceNew: boolean = false) => {
+    setIsSotdLoading(true);
+    try {
+      const history = getRecentSotdHistory();
+      if (forceNew && sotd?.title) {
+        history.push(sotd.title);
+      }
+      const song = await getSongOfTheDay(history);
+      setSotd(song);
+      saveToSotdHistory(song.title);
+      const today = new Date().toISOString().split('T')[0];
+      localStorage.setItem('sotd_date', today);
+      localStorage.setItem('sotd_data', JSON.stringify(song));
+
+      // Reward: +25 points for SOTD discovery
+      addPoints(25);
+      unlockBadge('early_bird');
+    } catch (e) {
+      console.error("Failed to fetch daily SOTD", e);
+    } finally {
+      setIsSotdLoading(false);
+    }
+  };
+
+  // Load SOTD: auto-updates every day with a fresh track
   useEffect(() => {
     try {
-        const today = new Date().toLocaleDateString();
-        const savedDate = localStorage.getItem('sotd_date');
-        const savedData = localStorage.getItem('sotd_data');
-        if (savedDate === today && savedData) {
-            setSotd(JSON.parse(savedData));
-        }
+      const today = new Date().toISOString().split('T')[0];
+      const savedDate = localStorage.getItem('sotd_date');
+      const savedData = localStorage.getItem('sotd_data');
+
+      if (savedDate === today && savedData) {
+        // Today's song has already been loaded for this date
+        setSotd(JSON.parse(savedData));
+      } else {
+        // A new day has started or first time visit: automatically load today's new song!
+        fetchDailySong();
+      }
     } catch (e) {
-        console.error("Failed to load SOTD", e);
+      console.error("Failed to load SOTD", e);
+      fetchDailySong();
     }
   }, []);
 
@@ -550,23 +600,8 @@ const MusicRecommender: React.FC<MusicRecommenderProps> = ({ isDark, toggleTheme
     }
   };
 
-  const handleRevealSOTD = async () => {
-    setIsSotdLoading(true);
-    try {
-        const song = await getSongOfTheDay();
-        setSotd(song);
-        localStorage.setItem('sotd_date', new Date().toLocaleDateString());
-        localStorage.setItem('sotd_data', JSON.stringify(song));
-        
-        // Reward: +25 points for SOTD
-        addPoints(25);
-        unlockBadge('early_bird');
-
-    } catch (e) {
-        console.error("Failed to fetch SOTD", e);
-    } finally {
-        setIsSotdLoading(false);
-    }
+  const handleRevealSOTD = () => {
+    fetchDailySong(true);
   };
 
   const handlePlaySOTD = () => {

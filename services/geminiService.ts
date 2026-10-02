@@ -222,21 +222,54 @@ Provide exactly 10 distinct, highly matching song recommendations. Return only a
   }
 };
 
-export const getSongOfTheDay = async (): Promise<Song> => {
+export const getSongOfTheDay = async (excludeTitles: string[] = []): Promise<Song> => {
   try {
     const ai = getGeminiClient();
-    const dateStr = new Date().toLocaleDateString();
+    const today = new Date();
+    const dateFormatted = today.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
 
-    const systemInstruction = `You are an expert music curator. Your task is to recommend one specific, unique, and legendary song as the custom "Song of the Day" for today (${dateStr}).
-The user has a deep affection for Indian/Bollywood, Indie fusion, or classic gems. Pick an exceptionally beautiful song.
+    // Curated day-of-week themes to guarantee daily variety
+    const dayThemes: Record<number, string> = {
+      0: "Sunday Soul & Serenity (soulful, peaceful acoustic gems, Coke Studio, timeless melodies)",
+      1: "Monday Momentum (uplifting, energetic Bollywood anthems and motivating indie grooves to ignite the week)",
+      2: "Tuesday Retro Gold (legendary vintage masterpieces, R.D. Burman, Kishore Kumar, Mohd Rafi, 70s-90s classics)",
+      3: "Wednesday Waves (modern indie fusion, acoustic pop, Prateek Kuhad, Anuv Jain, contemporary singer-songwriter)",
+      4: "Thursday Acoustic Romance (magical romantic melodies, Arijit Singh, Mohit Chauhan, Shreya Ghoshal, KK)",
+      5: "Friday High Energy Fiesta (vibrant, dance, celebratory, Punjabi beats, high tempo party & festive bangers)",
+      6: "Saturday Sonic Journey (grand cinematic film scores, A.R. Rahman masterpieces, rock and Sufi fusion)"
+    };
+    const currentTheme = dayThemes[today.getDay()] || "Legendary Melodies";
+
+    const excludeClause = excludeTitles.length > 0
+      ? `CRITICAL DIVERSITY RULE: Do NOT recommend any of these recently featured songs: ${excludeTitles.slice(-15).map(t => `"${t}"`).join(', ')}. Pick a completely different, fresh, iconic track.`
+      : '';
+
+    const systemInstruction = `You are an elite music curator recommending the daily "Song of the Day" for ${dateFormatted}.
+Today's Theme: ${currentTheme}.
+Your task is to select ONE legendary, celebrated Indian/Bollywood, Indie, Sufi, or South Asian song that fits today's vibe and is distinctly different every single day.
+
+${excludeClause}
+
 For the song, you must produce:
-- title: The title of the song
-- artist: The legendary artist/vocalist
+- title: The title of the song (e.g. "Chaiyya Chaiyya", "Kun Faya Kun", "Iktara", "Zara Sa", "Mera Safar", "Tum Se Hi", "Ilahi", "Baarishein", etc.)
+- artist: The main vocalist/music director (e.g. Arijit Singh, A.R. Rahman, Mohit Chauhan, KK, Shreya Ghoshal, Kishore Kumar, Ritviz, Prateek Kuhad)
 - spotifyUrl: A clean search link formatted as https://open.spotify.com/search/[url-encoded-query]
-- albumArtUrl: A gorgeous music-related Unsplash image URL (e.g. "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&h=300&fit=crop" or "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop")
-- previewUrl: A high-fidelity, verified open-source preview track (use "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3" or any other SoundHelix MP3 file from SoundHelix-Song-1.mp3 to SoundHelix-Song-16.mp3 to guarantee absolute playback execution).
+- albumArtUrl: A gorgeous music-themed Unsplash image URL
+- previewUrl: A high-fidelity, verified preview track (choose one of:
+  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3",
+  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3",
+  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3")
 
-Ensure perfect JSON formatting.`
+Ensure perfect JSON formatting.`;
 
     const responseSchema = {
       type: Type.OBJECT,
@@ -252,18 +285,19 @@ Ensure perfect JSON formatting.`
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash-lite",
-      contents: "Query the exclusive Song of the Day.",
+      contents: `Query today's unique Song of the Day for ${dateFormatted}. Random seed: ${Math.random().toString(36).substring(7)}`,
       config: {
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema,
+        temperature: 0.95,
       },
     });
 
     const jsonText = response.text.trim();
     const song = JSON.parse(jsonText);
     
-    // Enrich Song of the Day with iTunes real-time metadata is well
+    // Enrich Song of the Day with iTunes real-time metadata (real album cover and real preview audio)
     const realData = await fetchRealSongData(song.title, song.artist);
     if (realData) {
       if (realData.albumArtUrl) song.albumArtUrl = realData.albumArtUrl;
@@ -273,6 +307,44 @@ Ensure perfect JSON formatting.`
 
   } catch (error) {
     console.error("Error fetching Song of the Day:", error);
-    throw new Error("Could not construct the exclusive song of the day.");
+    const fallbackSongs: Song[] = [
+      {
+        title: "Iktara",
+        artist: "Kavita Seth & Amitabh Bhattacharya",
+        spotifyUrl: "https://open.spotify.com/search/Iktara%20Wake%20Up%20Sid",
+        albumArtUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop",
+        previewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"
+      },
+      {
+        title: "Kun Faya Kun",
+        artist: "A.R. Rahman, Javed Ali, Mohit Chauhan",
+        spotifyUrl: "https://open.spotify.com/search/Kun%20Faya%20Kun%20Rockstar",
+        albumArtUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=400&fit=crop",
+        previewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3"
+      },
+      {
+        title: "Chaiyya Chaiyya",
+        artist: "Sukhwinder Singh, Sapna Awasthi",
+        spotifyUrl: "https://open.spotify.com/search/Chaiyya%20Chaiyya%20Dil%20Se",
+        albumArtUrl: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&h=400&fit=crop",
+        previewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+      },
+      {
+        title: "Ilahi",
+        artist: "Arijit Singh",
+        spotifyUrl: "https://open.spotify.com/search/Ilahi%20Yeh%20Jawaani%20Hai%20Deewani",
+        albumArtUrl: "https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=400&h=400&fit=crop",
+        previewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"
+      },
+      {
+        title: "Tum Se Hi",
+        artist: "Mohit Chauhan",
+        spotifyUrl: "https://open.spotify.com/search/Tum%20Se%20Hi%20Jab%20We%20Met",
+        albumArtUrl: "https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=400&h=400&fit=crop",
+        previewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3"
+      }
+    ];
+    const randomIndex = Math.floor(Math.random() * fallbackSongs.length);
+    return fallbackSongs[randomIndex];
   }
 };
